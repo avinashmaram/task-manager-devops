@@ -1,17 +1,60 @@
-- name: Deploy to EC2
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_KEY: ${{ secrets.EC2_SSH_KEY }}
-          DB_URL: ${{ secrets.DATABASE_URL }}
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r app/requirements.txt pytest httpx
+
+      - name: Run tests
+        working-directory: app
+        run: pytest tests/ -v
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Build Docker image
+        run: docker build -t task-manager .
+
+      - name: Deploy to EC2
         run: |
-          echo "$EC2_KEY" > key.pem
+          echo "${{ secrets.EC2_SSH_KEY }}" > key.pem
           chmod 600 key.pem
-          docker save task-manager | ssh -i key.pem -o StrictHostKeyChecking=no ec2-user@$EC2_HOST docker load
-          ssh -i key.pem ec2-user@$EC2_HOST "
+          docker save task-manager | ssh -i key.pem -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} docker load
+          ssh -i key.pem -o StrictHostKeyChecking=no ec2-user@${{ secrets.EC2_HOST }} << 'ENDSSH'
             docker stop task-manager || true
             docker rm task-manager || true
-            docker run -d --name task-manager \
+            docker run -d \
+              --name task-manager \
               -p 8000:8000 \
-              -e DATABASE_URL='$DB_URL' \
+              -e DATABASE_URL="${{ secrets.DATABASE_URL }}" \
               task-manager
-          "
+          ENDSSH
