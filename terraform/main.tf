@@ -77,10 +77,11 @@ resource "aws_security_group" "db" {
 
 # EC2 Instance (free tier t2.micro)
 resource "aws_instance" "app" {
-  ami           = "ami-0c02fb55956c7d316"
-  instance_type = "t2.micro"
+  ami           = "ami-0fff1b9a61dec8a5f"
+  instance_type = "t3.micro"
   subnet_id     = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.app.id]
+  key_name      = "task-manager-key2"
   user_data = <<-EOF
     #!/bin/bash
     yum update -y
