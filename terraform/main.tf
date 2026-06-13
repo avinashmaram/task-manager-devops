@@ -81,7 +81,7 @@ resource "aws_instance" "app" {
   instance_type = "t3.micro"
   subnet_id     = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.app.id]
-  key_name      = "task-manager-key2"
+  key_name      = "task-manager-key4"
   user_data = <<-EOF
     #!/bin/bash
     yum update -y
